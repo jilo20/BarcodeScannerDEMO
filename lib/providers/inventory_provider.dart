@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import '../models/product.dart';
 
-class CartProvider extends ChangeNotifier {
-  final List<CartItem> _items = [];
+class InventoryProvider extends ChangeNotifier {
+  final List<InventoryItem> _items = [];
   
   // Mock product database
   final Map<String, Product> _mockDatabase = {
@@ -11,7 +11,7 @@ class CartProvider extends ChangeNotifier {
     'EGGS-112233445': Product(id: 'EGGS-112233445', name: 'Dozen Eggs', price: 4.80),
   };
 
-  List<CartItem> get items => _items;
+  List<InventoryItem> get items => _items;
 
   double get totalPrice => _items.fold(0.0, (sum, item) => sum + item.total);
 
@@ -26,7 +26,7 @@ class CartProvider extends ChangeNotifier {
       if (existingIndex >= 0) {
         _items[existingIndex].quantity++;
       } else {
-        _items.add(CartItem(product: product));
+        _items.add(InventoryItem(product: product));
       }
       notifyListeners();
     } else {
@@ -38,7 +38,7 @@ class CartProvider extends ChangeNotifier {
       if (existingIndex >= 0) {
         _items[existingIndex].quantity++;
       } else {
-        _items.add(CartItem(product: genericProduct));
+        _items.add(InventoryItem(product: genericProduct));
       }
       notifyListeners();
     }
@@ -49,7 +49,7 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearCart() {
+  void clearInventory() {
     _items.clear();
     notifyListeners();
   }

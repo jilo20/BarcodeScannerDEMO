@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/cart_provider.dart';
+import '../providers/inventory_provider.dart';
 
-class CartScreen extends StatelessWidget {
-  const CartScreen({super.key});
+class InventoryScreen extends StatelessWidget {
+  const InventoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('POS Cart'),
+        title: const Text('Inventory'),
         actions: [
           IconButton(
             onPressed: () {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('Clear Cart'),
+                  title: const Text('Clear Inventory'),
                   content: const Text('Are you sure you want to clear all items?'),
                   actions: [
                     TextButton(
@@ -25,7 +25,7 @@ class CartScreen extends StatelessWidget {
                     ),
                     TextButton(
                       onPressed: () {
-                        context.read<CartProvider>().clearCart();
+                        context.read<InventoryProvider>().clearInventory();
                         Navigator.pop(context);
                       },
                       child: const Text('Clear', style: TextStyle(color: Colors.red)),
@@ -38,17 +38,17 @@ class CartScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<CartProvider>(
-        builder: (context, cart, child) {
-          if (cart.items.isEmpty) {
+      body: Consumer<InventoryProvider>(
+        builder: (context, inventory, child) {
+          if (inventory.items.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.shopping_cart_outlined, size: 60, color: Colors.grey),
+                  Icon(Icons.inventory_2_outlined, size: 60, color: Colors.grey),
                   SizedBox(height: 16),
                   Text(
-                    'Your cart is empty.\nScan some items!',
+                    'Your inventory is empty.\nScan some items!',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 18, color: Colors.grey),
                   ),
@@ -58,10 +58,10 @@ class CartScreen extends StatelessWidget {
           }
 
           return ListView.builder(
-            itemCount: cart.items.length,
+            itemCount: inventory.items.length,
             padding: const EdgeInsets.only(bottom: 100),
             itemBuilder: (context, index) {
-              final item = cart.items[index];
+              final item = inventory.items[index];
               return Dismissible(
                 key: Key(item.product.id),
                 direction: DismissDirection.endToStart,
@@ -72,7 +72,7 @@ class CartScreen extends StatelessWidget {
                   child: const Icon(Icons.delete, color: Colors.white),
                 ),
                 onDismissed: (_) {
-                  cart.removeItem(index);
+                  inventory.removeItem(index);
                 },
                 child: Card(
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -99,7 +99,7 @@ class CartScreen extends StatelessWidget {
                     ),
                     onTap: () {
                       // Option to increase quantity manually
-                      cart.scanBarcode(item.product.id);
+                      inventory.scanBarcode(item.product.id);
                     },
                   ),
                 ),
@@ -108,9 +108,9 @@ class CartScreen extends StatelessWidget {
           );
         },
       ),
-      bottomSheet: Consumer<CartProvider>(
-        builder: (context, cart, child) {
-          if (cart.items.isEmpty) return const SizedBox.shrink();
+      bottomSheet: Consumer<InventoryProvider>(
+        builder: (context, inventory, child) {
+          if (inventory.items.isEmpty) return const SizedBox.shrink();
           
           return Container(
             padding: const EdgeInsets.all(16),
@@ -133,7 +133,7 @@ class CartScreen extends StatelessWidget {
                   children: [
                     const Text('Total Amount', style: TextStyle(color: Colors.grey)),
                     Text(
-                      '\$${cart.totalPrice.toStringAsFixed(2)}',
+                      '\$${inventory.totalPrice.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -146,16 +146,16 @@ class CartScreen extends StatelessWidget {
                   onPressed: () {
                     // Checkout placeholder
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Checkout processed!')),
+                      const SnackBar(content: Text('Inventory saved!')),
                     );
-                    cart.clearCart();
+                    inventory.clearInventory();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                   ),
-                  child: const Text('CHECKOUT', style: TextStyle(fontSize: 16)),
+                  child: const Text('SAVE INVENTORY', style: TextStyle(fontSize: 16)),
                 ),
               ],
             ),

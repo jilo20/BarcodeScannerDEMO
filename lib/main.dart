@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'providers/cart_provider.dart';
+import 'providers/inventory_provider.dart';
 import 'screens/scanner_screen.dart';
-import 'screens/cart_screen.dart';
+import 'screens/inventory_screen.dart';
 
 void main() {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(create: (_) => InventoryProvider()),
       ],
       child: const MyApp(),
     ),
@@ -50,7 +50,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final List<Widget> _screens = [
     const ScannerScreen(),
-    const CartScreen(),
+    const InventoryScreen(),
   ];
 
   @override
@@ -70,16 +70,16 @@ class _MainNavigationState extends State<MainNavigation> {
             label: 'Scanner',
           ),
           NavigationDestination(
-            icon: Consumer<CartProvider>(
-              builder: (context, cart, child) {
-                if (cart.items.isEmpty) return const Icon(Icons.shopping_cart);
+            icon: Consumer<InventoryProvider>(
+              builder: (context, inventory, child) {
+                if (inventory.items.isEmpty) return const Icon(Icons.inventory);
                 return Badge(
-                  label: Text(cart.items.length.toString()),
-                  child: const Icon(Icons.shopping_cart),
+                  label: Text(inventory.items.length.toString()),
+                  child: const Icon(Icons.inventory),
                 );
               },
             ),
-            label: 'Cart',
+            label: 'Inventory',
           ),
         ],
       ),

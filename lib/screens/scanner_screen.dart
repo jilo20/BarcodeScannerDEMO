@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
-import '../providers/cart_provider.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'dart:async';
+import '../providers/inventory_provider.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -12,13 +14,91 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen> {
   final MobileScannerController controller = MobileScannerController();
-  String? lastScanned;
-  DateTime? lastScanTime;
+  final AudioPlayer audioPlayer = AudioPlayer();
+  final Map<String, Timer> _activeBarcodes = {};
+  bool _showSuccessMarker = false;
+  Color _overlayColor = Colors.white.withOpacity(0.5);
+  double _overlayBorderWidth = 2.0;
 
   @override
   void dispose() {
     controller.dispose();
+    audioPlayer.dispose();
+    for (var timer in _activeBarcodes.values) {
+      timer.cancel();
+    }
     super.dispose();
+  }
+
+  Future<void> _playBeep() async {
+    try {
+      await audioPlayer.play(AssetSource('beep.wav'));
+    } catch (e) {
+      debugPrint('Error playing beep: $e');
+    }
+  }
+
+
+  Future<void> _handleBarcode(String code) async {
+    if (_activeBarcodes.containsKey(code)) {
+      // Barcode is still in view, reset the exit timer
+      _activeBarcodes[code]?.cancel();
+      _activeBarcodes[code] = Timer(const Duration(milliseconds: 1000), () {
+        if (mounted) {
+          setState(() {
+            _activeBarcodes.remove(code);
+          });
+        }
+      });
+      return;
+    }
+
+    // New barcode detection (not currently "active")
+    if (mounted) {
+      setState(() {
+        _activeBarcodes[code] = Timer(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            setState(() {
+              _activeBarcodes.remove(code);
+            });
+          }
+        });
+      });
+    }
+
+    // Play beep sound
+    _playBeep();
+
+    if (mounted) {
+      setState(() {
+        _showSuccessMarker = true;
+        _overlayColor = Colors.green;
+        _overlayBorderWidth = 5.0;
+      });
+      
+      // Reset visual feedback after a delay
+      Timer(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _showSuccessMarker = false;
+            _overlayColor = Colors.white.withOpacity(0.5);
+            _overlayBorderWidth = 2.0;
+          });
+        }
+      });
+
+      // Add directly to inventory without confirmation
+      context.read<InventoryProvider>().scanBarcode(code);
+      
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added $code to inventory'),
+          duration: const Duration(milliseconds: 800),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -58,48 +138,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
               for (final barcode in barcodes) {
                 final String? code = barcode.rawValue;
                 if (code != null) {
-                  // Simple cooldown to avoid multiple rapid scans of same object
-                  final now = DateTime.now();
-                  if (lastScanned == code && 
-                      lastScanTime != null && 
-                      now.difference(lastScanTime!).inMilliseconds < 1500) {
-                    continue;
-                  }
-                  
-                  setState(() {
-                    lastScanned = code;
-                    lastScanTime = now;
-                  });
-
-                  // Add to cart via provider
-                  context.read<CartProvider>().scanBarcode(code);
-                  
-                  // Visual feedback
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Scanned: $code'),
-                      duration: const Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  _handleBarcode(code);
                 }
               }
             },
           ),
           // Custom overlay to guide the user
           Center(
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
               width: 250,
               height: 150,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 2),
+                color: _showSuccessMarker ? Colors.green.withOpacity(0.2) : Colors.transparent,
+                border: Border.all(color: _overlayColor, width: _overlayBorderWidth),
                 borderRadius: BorderRadius.circular(12),
               ),
+              child: _showSuccessMarker 
+                ? const Icon(Icons.check_circle, color: Colors.green, size: 80)
+                : const SizedBox.shrink(),
             ),
           ),
           const Positioned(
-            bottom: 100,
+            bottom: 120,
             left: 0,
             right: 0,
             child: Center(
@@ -134,7 +195,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                         autofocus: true,
                         onSubmitted: (value) {
                           if (value.isNotEmpty) {
-                            context.read<CartProvider>().scanBarcode(value);
+                            _handleBarcode(value); // Use the same handler for sound/prompt
                             Navigator.pop(context);
                           }
                         },
@@ -147,7 +208,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                         TextButton(
                           onPressed: () {
                             if (textController.text.isNotEmpty) {
-                              context.read<CartProvider>().scanBarcode(textController.text);
+                              _handleBarcode(textController.text);
                               Navigator.pop(context);
                             }
                           },
