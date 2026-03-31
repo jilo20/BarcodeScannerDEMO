@@ -1,46 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/inventory_provider.dart';
+import '../models/package_model.dart';
 
-class InventoryScreen extends StatelessWidget {
+class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
+
+  @override
+  State<InventoryScreen> createState() => _InventoryScreenState();
+}
+
+class _InventoryScreenState extends State<InventoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Fetch packages when screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<InventoryProvider>().fetchPackages();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Inventory'),
+        title: const Text('Package Inventory'),
         actions: [
           IconButton(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Clear Inventory'),
-                  content: const Text('Are you sure you want to clear all items?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        context.read<InventoryProvider>().clearInventory();
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Clear', style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
-                ),
-              );
-            },
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: () => context.read<InventoryProvider>().fetchPackages(),
+            icon: const Icon(Icons.refresh),
           ),
         ],
       ),
       body: Consumer<InventoryProvider>(
         builder: (context, inventory, child) {
-          if (inventory.items.isEmpty) {
+          if (inventory.isLoading && inventory.packages.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (inventory.errorMessage != null && inventory.packages.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(inventory.errorMessage!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => inventory.fetchPackages(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          if (inventory.packages.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -48,7 +64,7 @@ class InventoryScreen extends StatelessWidget {
                   Icon(Icons.inventory_2_outlined, size: 60, color: Colors.grey),
                   SizedBox(height: 16),
                   Text(
-                    'Your inventory is empty.\nScan some items!',
+                    'No packages found.\nStart scanning to add events!',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 18, color: Colors.grey),
                   ),
@@ -57,110 +73,101 @@ class InventoryScreen extends StatelessWidget {
             );
           }
 
-          return ListView.builder(
-            itemCount: inventory.items.length,
-            padding: const EdgeInsets.only(bottom: 100),
-            itemBuilder: (context, index) {
-              final item = inventory.items[index];
-              return Dismissible(
-                key: Key(item.product.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  color: Colors.red,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  child: const Icon(Icons.delete, color: Colors.white),
-                ),
-                onDismissed: (_) {
-                  inventory.removeItem(index);
-                },
-                child: Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  elevation: 2,
+          return RefreshIndicator(
+            onRefresh: () => inventory.fetchPackages(),
+            child: ListView.builder(
+              itemCount: inventory.packages.length,
+              padding: const EdgeInsets.only(bottom: 16),
+              itemBuilder: (context, index) {
+                final package = inventory.packages[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.blue.shade100,
-                      child: Text(
-                        item.quantity.toString(),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.inventory_2),
                     ),
                     title: Text(
-                      item.product.name,
+                      package.trackingNumber,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text('\$${item.product.price.toStringAsFixed(2)} each'),
-                    trailing: Text(
-                      '\$${item.total.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('To: ${package.recipientName}'),
+                        Text('Status: ${package.currentStatus}', 
+                          style: TextStyle(
+                            color: _getStatusColor(package.currentStatus),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
+                    trailing: const Icon(Icons.chevron_right),
                     onTap: () {
-                      // Option to increase quantity manually
-                      inventory.scanBarcode(item.product.id);
+                      // Navigate to package details or events
+                      _showPackageDetails(context, package);
                     },
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           );
         },
       ),
-      bottomSheet: Consumer<InventoryProvider>(
-        builder: (context, inventory, child) {
-          if (inventory.items.isEmpty) return const SizedBox.shrink();
-          
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, -5),
-                ),
-              ],
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'delivered': return Colors.green;
+      case 'in transit': return Colors.blue;
+      case 'pending': return Colors.orange;
+      default: return Colors.grey;
+    }
+  }
+
+  void _showPackageDetails(BuildContext context, Package package) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Package Details', style: Theme.of(context).textTheme.headlineSmall),
+            const Divider(),
+            const SizedBox(height: 16),
+            _detailRow('Tracking #', package.trackingNumber),
+            _detailRow('Ref Code', package.referenceCode),
+            _detailRow('Recipient', package.recipientName),
+            _detailRow('Address', package.recipientAddress),
+            _detailRow('Phone', package.recipientPhone),
+            _detailRow('Description', package.description),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Total Amount', style: TextStyle(color: Colors.grey)),
-                    Text(
-                      '\$${inventory.totalPrice.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
-                  ],
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    // Checkout placeholder
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Inventory saved!')),
-                    );
-                    inventory.clearInventory();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                  ),
-                  child: const Text('SAVE INVENTORY', style: TextStyle(fontSize: 16)),
-                ),
-              ],
-            ),
-          );
-        },
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 100, child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(child: Text(value)),
+        ],
       ),
     );
   }

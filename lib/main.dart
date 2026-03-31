@@ -72,9 +72,9 @@ class _MainNavigationState extends State<MainNavigation> {
           NavigationDestination(
             icon: Consumer<InventoryProvider>(
               builder: (context, inventory, child) {
-                if (inventory.items.isEmpty) return const Icon(Icons.inventory);
+                if (inventory.packages.isEmpty) return const Icon(Icons.inventory);
                 return Badge(
-                  label: Text(inventory.items.length.toString()),
+                  label: Text(inventory.packages.length.toString()),
                   child: const Icon(Icons.inventory),
                 );
               },

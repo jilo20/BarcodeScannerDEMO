@@ -87,17 +87,33 @@ class _ScannerScreenState extends State<ScannerScreen> {
         }
       });
 
-      // Add directly to inventory without confirmation
-      context.read<InventoryProvider>().scanBarcode(code);
+      // Record the scan to the API
+      debugPrint('Scanning barcode: "$code"');
+      final bool success = await context.read<InventoryProvider>().recordBarcodeScan(code);
       
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added $code to inventory'),
-          duration: const Duration(milliseconds: 800),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Successfully recorded scan: $code'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          final error = context.read<InventoryProvider>().errorMessage ?? 'Failed to record scan';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $error'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -136,8 +152,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
             onDetect: (capture) {
               final List<Barcode> barcodes = capture.barcodes;
               for (final barcode in barcodes) {
-                final String? code = barcode.rawValue;
-                if (code != null) {
+                final String? code = barcode.rawValue?.trim();
+                if (code != null && code.isNotEmpty) {
                   _handleBarcode(code);
                 }
               }
